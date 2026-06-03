@@ -7,21 +7,19 @@ const { exportToCSV } = require('../utils/exportCSV');
 
 class PacienteController {
 
-  // Helper para invalidar caché
+  // Helper para invalidar caché - como función independiente
   _invalidarCachePacientes() {
     cacheHelpers.invalidateByPrefix('pacientes_lista');
     cacheHelpers.invalidateByPrefix('stats');
   }
 
   // 1. LISTAR (GET /api/v1/pacientes) - CON CACHÉ
-  async listar(req, res, next) {
+  listar = async (req, res, next) => {
     try {
       const { page = 0, size = 10, estado, especialidad, edadMin, edadMax, sortBy = 'nombre', order = 'asc' } = req.query;
       
-      // Generar clave de caché única basada en los filtros
       const cacheKey = `pacientes_lista_${page}_${size}_${estado}_${especialidad}_${sortBy}`;
       
-      // Intentar obtener de caché
       const cachedData = cacheHelpers.get(cacheKey);
       if (cachedData) {
         console.log(`[CACHE HIT] ${cacheKey}`);
@@ -42,7 +40,6 @@ class PacienteController {
         order
       });
 
-      // Guardar en caché por 30 segundos
       cacheHelpers.set(cacheKey, resultado, 30);
 
       res.json({
@@ -57,8 +54,8 @@ class PacienteController {
     }
   }
 
-  // 2. OBTENER POR ID (GET /api/v1/pacientes/:id)
-  async obtenerPorId(req, res, next) {
+  // 2. OBTENER POR ID
+  obtenerPorId = async (req, res, next) => {
     try {
       const { id } = req.params;
       const paciente = await pacienteRepository.findById(id);
@@ -72,7 +69,7 @@ class PacienteController {
       res.json({
         timestamp: new Date().toISOString(),
         status: 200,
-        data: paciente.toJSON(true) // true = incluir historial
+        data: paciente.toJSON(true)
       });
 
     } catch (error) {
@@ -81,11 +78,10 @@ class PacienteController {
   }
 
   // 3. CREAR (POST /api/v1/pacientes)
-  async crear(req, res, next) {
+  crear = async (req, res, next) => {
     try {
       const pacienteData = { ...req.body, creadoPor: req.user.usuario };
       
-      // Validar unicidad de DUI
       const existente = await pacienteRepository.findByDUI(pacienteData.dui);
       if (existente) {
         const err = new Error('DUI_DUPLICADO');
@@ -96,10 +92,8 @@ class PacienteController {
       const nuevoPaciente = new Paciente(pacienteData);
       await pacienteRepository.create(nuevoPaciente);
 
-      // Auditoría Automática
       await auditoriaService.registrar(req.user.usuario, 'CREATE', nuevoPaciente.id, `Paciente ${nuevoPaciente.nombre} ${nuevoPaciente.apellido} registrado`);
 
-      // Invalidar caché
       this._invalidarCachePacientes();
 
       res.status(201).json({
@@ -115,13 +109,13 @@ class PacienteController {
   }
 
   // 4. ACTUALIZAR (PUT /api/v1/pacientes/:id) - OPTIMISTIC LOCKING
-  async actualizar(req, res, next) {
+  actualizar = async (req, res, next) => {
     try {
       const { id } = req.params;
       const versionEnviada = parseInt(req.body.version);
 
       if (isNaN(versionEnviada)) {
-        throw new Error('CONFLICT_VERSION'); // Si no envía versión, falla
+        throw new Error('CONFLICT_VERSION');
       }
 
       const pacienteExistente = await pacienteRepository.findById(id);
@@ -131,14 +125,12 @@ class PacienteController {
         throw err;
       }
 
-      // VALIDACIÓN DE CONCURRENCIA (Optimistic Locking)
       if (pacienteExistente.version !== versionEnviada) {
         const err = new Error('CONFLICT_VERSION');
         err.detalles = `Versión enviada: ${versionEnviada}, Versión actual: ${pacienteExistente.version}`;
         throw err;
       }
 
-      // Actualizar datos
       pacienteExistente.nombre = req.body.nombre;
       pacienteExistente.apellido = req.body.apellido;
       pacienteExistente.edad = req.body.edad;
@@ -149,7 +141,6 @@ class PacienteController {
 
       await pacienteRepository.update(pacienteExistente);
 
-      // Auditoría
       await auditoriaService.registrar(req.user.usuario, 'UPDATE', id, `Expediente actualizado de v${versionEnviada} a v${pacienteExistente.version}`);
       this._invalidarCachePacientes();
 
@@ -166,7 +157,7 @@ class PacienteController {
   }
 
   // 5. CAMBIAR ESTADO (PATCH /api/v1/pacientes/:id/estado)
-  async cambiarEstado(req, res, next) {
+  cambiarEstado = async (req, res, next) => {
     try {
       const { id } = req.params;
       const { estado } = req.body;
@@ -197,7 +188,7 @@ class PacienteController {
   }
 
   // 6. ELIMINAR LÓGICAMENTE (DELETE /api/v1/pacientes/:id)
-  async eliminar(req, res, next) {
+  eliminar = async (req, res, next) => {
     try {
       const { id } = req.params;
       const paciente = await pacienteRepository.findById(id);
@@ -208,7 +199,6 @@ class PacienteController {
         throw err;
       }
 
-      // Eliminación Lógica (Cambiar a INACTIVO)
       paciente.estado = 'INACTIVO';
       paciente.incrementVersion(req.user.usuario);
       await pacienteRepository.update(paciente);
@@ -224,7 +214,7 @@ class PacienteController {
   }
 
   // 7. AGREGAR CONSULTA (POST /api/v1/pacientes/:id/consultas)
-  async agregarConsulta(req, res, next) {
+  agregarConsulta = async (req, res, next) => {
     try {
       const { id } = req.params;
       const paciente = await pacienteRepository.findById(id);
@@ -254,7 +244,7 @@ class PacienteController {
   }
 
   // 8. OBTENER VERSIÓN (GET /api/v1/pacientes/:id/version)
-  async obtenerVersion(req, res, next) {
+  obtenerVersion = async (req, res, next) => {
     try {
       const { id } = req.params;
       const paciente = await pacienteRepository.findById(id);
@@ -281,7 +271,7 @@ class PacienteController {
   }
 
   // 9. EXPORTAR CSV (GET /api/v1/pacientes/export/csv)
-  async exportarCSV(req, res, next) {
+  exportarCSV = async (req, res, next) => {
     try {
       const pacientesActivos = await pacienteRepository.findAllActivos();
       const csvContent = exportToCSV(pacientesActivos);
@@ -299,7 +289,7 @@ class PacienteController {
   }
 
   // 10. BÚSQUEDA AVANZADA (GET /api/v1/pacientes/search)
-  async buscar(req, res, next) {
+  buscar = async (req, res, next) => {
     try {
       const { q, dui } = req.query;
       const resultados = await pacienteRepository.search({ q, dui });

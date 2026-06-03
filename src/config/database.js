@@ -4,16 +4,15 @@
  */
 
 // Almacenamiento en memoria usando Map para mejor rendimiento
+
 const database = {
   pacientes: new Map(),
   usuarios: new Map(),
-  auditoria: new Map(),
+  auditoria: [],  // ✅ CORREGIDO: era Map(), debe ser array []
   consultas: new Map()
 };
 
-// Métodos utilitarios para el repositorio
 const dbHelpers = {
-  // Generar ID único tipo UUID
   generateId: () => {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
       const r = Math.random() * 16 | 0;
@@ -22,19 +21,17 @@ const dbHelpers = {
     });
   },
 
-  // Limpiar toda la base de datos (solo para tests)
   clearAll: () => {
     database.pacientes.clear();
     database.usuarios.clear();
-    database.auditoria.clear();
+    database.auditoria = [];
     database.consultas.clear();
   },
 
-  // Obtener estadísticas de la BD
   getStats: () => ({
     pacientes: database.pacientes.size,
     usuarios: database.usuarios.size,
-    auditoria: database.auditoria.size,
+    auditoria: database.auditoria.length,
     consultas: database.consultas.size
   })
 };
